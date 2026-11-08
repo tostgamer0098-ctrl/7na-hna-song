@@ -11,7 +11,7 @@ const { Client, GatewayIntentBits, Events } = require('discord.js');
 
 const MusicPlayer = require('./bot/musicPlayer');
 
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 5000;
 const VOICE_CHANNEL_ID = process.env.VOICE_CHANNEL_ID;
 
 // ---------- Web server ----------
