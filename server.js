@@ -7,7 +7,7 @@ const path = require('path');
 const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
-const { Client, GatewayIntentBits, Events } = require('discord.js');
+const { Client, GatewayIntentBits, Events, PermissionFlagsBits } = require('discord.js');
 
 const MusicPlayer = require('./bot/musicPlayer');
 
@@ -65,10 +65,27 @@ client.once(Events.ClientReady, async (c) => {
   if (VOICE_CHANNEL_ID) {
     try {
       const channel = await c.channels.fetch(VOICE_CHANNEL_ID);
+      if (!channel?.isVoiceBased?.()) {
+        throw new Error('VOICE_CHANNEL_ID does not point to a voice channel.');
+      }
+
+      const permissions = channel.permissionsFor(c.user);
+      const requiredPermissions = [
+        [PermissionFlagsBits.ViewChannel, 'View Channel'],
+        [PermissionFlagsBits.Connect, 'Connect'],
+        [PermissionFlagsBits.Speak, 'Speak'],
+      ];
+      const missingPermissions = requiredPermissions
+        .filter(([permission]) => !permissions?.has(permission))
+        .map(([, label]) => label);
+      if (missingPermissions.length) {
+        throw new Error(`The bot is missing channel permissions: ${missingPermissions.join(', ')}.`);
+      }
+
       await musicPlayer.connect(channel);
     } catch (err) {
       console.error('Could not join the configured voice channel:', err.message);
-      console.error('Double check VOICE_CHANNEL_ID in your .env file.');
+      console.error('Check VOICE_CHANNEL_ID and the bot permissions for that voice channel.');
     }
   } else {
     console.log('No VOICE_CHANNEL_ID set yet. Use !join in a voice channel, or set it in .env.');
@@ -85,8 +102,12 @@ client.on(Events.MessageCreate, async (message) => {
     case '!join': {
       const channel = message.member?.voice?.channel;
       if (!channel) return message.reply('Join a voice channel first!');
-      await musicPlayer.connect(channel);
-      message.reply(`Joined **${channel.name}**.`);
+      try {
+        await musicPlayer.connect(channel);
+        await message.reply(`Joined **${channel.name}**.`);
+      } catch (err) {
+        await message.reply(`Could not join the voice channel: ${err.message}`);
+      }
       break;
     }
     case '!play': {

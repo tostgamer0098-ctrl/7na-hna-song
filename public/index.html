@@ -70,16 +70,19 @@
     font-size: 12px;
   }
   .empty { color: var(--muted); font-size: 13px; padding: 10px 0; }
+  .error { color: #ff9b9b; font-size: 13px; margin-top: 8px; }
+  .error:empty { display: none; }
 </style>
 </head>
 <body>
 
 <h1>🎵 Control Panel</h1>
-<div class="sub">Connected to the bot in real time</div>
+<div class="sub" id="connectionStatus">Checking Discord voice connection…</div>
 
 <div class="card">
   <div class="now-playing-title" id="nowPlaying">Nothing playing</div>
   <div class="status" id="status">Idle</div>
+  <div class="error" id="playerError" role="status" aria-live="polite"></div>
   <div class="controls">
     <button id="pauseBtn">Pause</button>
     <button id="resumeBtn" class="secondary">Resume</button>
@@ -106,12 +109,24 @@
 
   const nowPlayingEl = document.getElementById('nowPlaying');
   const statusEl = document.getElementById('status');
+  const connectionStatusEl = document.getElementById('connectionStatus');
+  const playerErrorEl = document.getElementById('playerError');
   const queueListEl = document.getElementById('queueList');
   const songInput = document.getElementById('songInput');
+
+  socket.on('connect', () => {
+    connectionStatusEl.textContent = 'Control panel connected · checking Discord voice…';
+  });
+
+  socket.on('disconnect', () => {
+    connectionStatusEl.textContent = 'Control panel disconnected';
+  });
 
   socket.on('state', (state) => {
     nowPlayingEl.textContent = state.current ? state.current.title : 'Nothing playing';
     statusEl.textContent = `Status: ${state.status} · ${state.queue.length} in queue`;
+    connectionStatusEl.textContent = `Control panel connected · Discord voice: ${state.voiceStatus || 'unknown'}`;
+    playerErrorEl.textContent = state.error || '';
 
     queueListEl.innerHTML = '';
     if (state.queue.length === 0) {
@@ -134,9 +149,12 @@
     const value = songInput.value.trim();
     if (!value) return;
     socket.emit('addSong', value, (res) => {
-      if (!res.ok) alert('Error: ' + res.error);
+      if (!res?.ok) {
+        alert('Error: ' + (res?.error || 'The song could not be added.'));
+        return;
+      }
+      songInput.value = '';
     });
-    songInput.value = '';
   };
 
   songInput.addEventListener('keydown', (e) => {

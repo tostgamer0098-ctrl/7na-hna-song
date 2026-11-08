@@ -54,6 +54,6 @@ You don't need the website at all to use basic commands in your server's text ch
 - `!skip`, `!pause`, `!resume`, `!queue`
 
 ## Notes
-- This streams audio from YouTube via `play-dl`. If a link fails, try searching by song name instead.
+- This streams audio from YouTube via `@distube/ytdl-core`. If a link fails, try searching by song name instead.
 - Everything here is your own bot in your own server — nothing here touches other people's
   accounts, passwords, or data.
