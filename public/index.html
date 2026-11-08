@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Music Control Panel</title>
+<style>
+  :root {
+    --bg: #0f1117;
+    --card: #181b25;
+    --accent: #7c5cff;
+    --text: #f2f2f7;
+    --muted: #8a8fa3;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    padding: 20px;
+    max-width: 480px;
+    margin: 0 auto;
+  }
+  h1 { font-size: 22px; margin-bottom: 4px; }
+  .sub { color: var(--muted); font-size: 13px; margin-bottom: 20px; }
+  .card {
+    background: var(--card);
+    border-radius: 16px;
+    padding: 16px;
+    margin-bottom: 16px;
+  }
+  .now-playing-title { font-size: 18px; font-weight: 600; margin-bottom: 4px; }
+  .status { color: var(--muted); font-size: 13px; }
+  .controls { display: flex; gap: 10px; margin-top: 14px; }
+  button {
+    flex: 1;
+    padding: 12px;
+    border: none;
+    border-radius: 10px;
+    background: var(--accent);
+    color: white;
+    font-size: 14px;
+    font-weight: 600;
+  }
+  button.secondary { background: #2a2e3d; color: var(--text); }
+  input[type=text] {
+    width: 100%;
+    padding: 12px;
+    border-radius: 10px;
+    border: 1px solid #2a2e3d;
+    background: #10121a;
+    color: var(--text);
+    font-size: 14px;
+    margin-bottom: 10px;
+  }
+  .queue-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 0;
+    border-bottom: 1px solid #22263;
+    font-size: 14px;
+  }
+  .queue-item:last-child { border-bottom: none; }
+  .queue-item button {
+    flex: none;
+    background: #2a2e3d;
+    padding: 6px 10px;
+    font-size: 12px;
+  }
+  .empty { color: var(--muted); font-size: 13px; padding: 10px 0; }
+</style>
+</head>
+<body>
+
+<h1>🎵 Control Panel</h1>
+<div class="sub">Connected to the bot in real time</div>
+
+<div class="card">
+  <div class="now-playing-title" id="nowPlaying">Nothing playing</div>
+  <div class="status" id="status">Idle</div>
+  <div class="controls">
+    <button id="pauseBtn">Pause</button>
+    <button id="resumeBtn" class="secondary">Resume</button>
+    <button id="skipBtn" class="secondary">Skip</button>
+  </div>
+</div>
+
+<div class="card">
+  <input type="text" id="songInput" placeholder="Paste a YouTube link or type a song name" />
+  <button id="addBtn" style="width:100%">Add to queue</button>
+</div>
+
+<div class="card">
+  <div style="display:flex; justify-content:space-between; align-items:center;">
+    <strong>Queue</strong>
+    <button id="clearBtn" class="secondary" style="flex:none; padding:6px 10px; font-size:12px;">Clear</button>
+  </div>
+  <div id="queueList"></div>
+</div>
+
+<script src="/socket.io/socket.io.js"></script>
+<script>
+  const socket = io();
+
+  const nowPlayingEl = document.getElementById('nowPlaying');
+  const statusEl = document.getElementById('status');
+  const queueListEl = document.getElementById('queueList');
+  const songInput = document.getElementById('songInput');
+
+  socket.on('state', (state) => {
+    nowPlayingEl.textContent = state.current ? state.current.title : 'Nothing playing';
+    statusEl.textContent = `Status: ${state.status} · ${state.queue.length} in queue`;
+
+    queueListEl.innerHTML = '';
+    if (state.queue.length === 0) {
+      queueListEl.innerHTML = '<div class="empty">Queue is empty — add a song above.</div>';
+    } else {
+      state.queue.forEach((track, i) => {
+        const row = document.createElement('div');
+        row.className = 'queue-item';
+        row.innerHTML = `<span>${i + 1}. ${track.title}</span>`;
+        const removeBtn = document.createElement('button');
+        removeBtn.textContent = 'Remove';
+        removeBtn.onclick = () => socket.emit('removeAt', i);
+        row.appendChild(removeBtn);
+        queueListEl.appendChild(row);
+      });
+    }
+  });
+
+  document.getElementById('addBtn').onclick = () => {
+    const value = songInput.value.trim();
+    if (!value) return;
+    socket.emit('addSong', value, (res) => {
+      if (!res.ok) alert('Error: ' + res.error);
+    });
+    songInput.value = '';
+  };
+
+  songInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') document.getElementById('addBtn').click();
+  });
+
+  document.getElementById('pauseBtn').onclick = () => socket.emit('pause');
+  document.getElementById('resumeBtn').onclick = () => socket.emit('resume');
+  document.getElementById('skipBtn').onclick = () => socket.emit('skip');
+  document.getElementById('clearBtn').onclick = () => socket.emit('clearQueue');
+</script>
+
+</body>
+</html>

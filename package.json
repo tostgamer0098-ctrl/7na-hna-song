@@ -1,0 +1,20 @@
+{
+  "name": "music-control-bot",
+  "version": "1.0.0",
+  "description": "Discord music bot controllable from a website",
+  "main": "server.js",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "discord.js": "^14.14.1",
+    "@discordjs/voice": "^0.16.1",
+    "@discordjs/opus": "^0.9.0",
+    "ffmpeg-static": "^5.2.0",
+    "play-dl": "^1.9.7",
+    "express": "^4.19.2",
+    "socket.io": "^4.7.5",
+    "dotenv": "^16.4.5"
+  }
+}
