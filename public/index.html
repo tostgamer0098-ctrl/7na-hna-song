@@ -6,11 +6,18 @@
 <title>Music Control Panel</title>
 <style>
   :root {
-    --bg: #0f1117;
-    --card: #181b25;
-    --accent: #7c5cff;
-    --text: #f2f2f7;
-    --muted: #8a8fa3;
+    --bg: #0a0a0a;
+    --surface: #111111;
+    --surface-raised: #171313;
+    --border: #452020;
+    --accent: #8b0000;
+    --accent-bright: #b01212;
+    --text: #f4f0f0;
+    --muted: #aaa0a0;
+    --live: #45c477;
+    --maintenance: #ef5151;
+    --radius: 16px;
+    color-scheme: dark;
   }
   * { box-sizing: border-box; }
   body {
@@ -18,41 +25,79 @@
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
     background: var(--bg);
     color: var(--text);
-    padding: 20px;
-    max-width: 480px;
-    margin: 0 auto;
+    padding: clamp(14px, 4vw, 28px);
+    min-height: 100vh;
   }
-  h1 { font-size: 22px; margin-bottom: 4px; }
-  .sub { color: var(--muted); font-size: 13px; margin-bottom: 20px; }
+  .shell { width: min(100%, 720px); margin: 0 auto; }
+  header { margin: 0 0 20px; }
+  h1 { font-size: clamp(22px, 6vw, 30px); margin: 0 0 6px; }
+  h2 { font-size: 20px; margin: 0 0 14px; }
+  .sub { color: var(--muted); font-size: 14px; }
   .card {
-    background: var(--card);
-    border-radius: 16px;
-    padding: 16px;
-    margin-bottom: 16px;
+    background: linear-gradient(145deg, #171313, #101010 70%);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: clamp(14px, 3vw, 20px);
+    margin-bottom: 14px;
+    box-shadow: 0 12px 35px rgba(0, 0, 0, .22);
   }
-  .now-playing-title { font-size: 18px; font-weight: 600; margin-bottom: 4px; }
-  .status { color: var(--muted); font-size: 13px; }
-  .controls { display: flex; gap: 10px; margin-top: 14px; }
+  .now-playing-title { font-size: 20px; font-weight: 700; margin-bottom: 6px; overflow-wrap: anywhere; }
+  .status { color: var(--muted); font-size: 14px; }
+  .controls, .button-row { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 14px; }
   .join-form { display: flex; gap: 10px; margin-top: 12px; }
   .join-form input[type=text] { flex: 1; min-width: 0; margin: 0; }
-  .join-form button { flex: none; min-width: 82px; }
+  .join-form button { flex: none; min-width: 90px; }
+  .volume-row { display: grid; grid-template-columns: auto minmax(120px, 1fr) auto; gap: 12px; align-items: center; margin-top: 16px; }
+  .volume-row label { font-size: 14px; font-weight: 600; }
+  input[type=range] { width: 100%; accent-color: var(--accent-bright); }
+  .queue-heading { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
   button {
     flex: 1;
-    padding: 12px;
-    border: none;
+    min-height: 46px;
+    padding: 11px 14px;
+    border: 1px solid #701919;
     border-radius: 10px;
     background: var(--accent);
     color: white;
     font-size: 14px;
     font-weight: 600;
+    cursor: pointer;
+    position: relative;
+    overflow: hidden;
+    isolation: isolate;
+    touch-action: manipulation;
+    transition: transform 170ms ease, background-color 170ms ease, box-shadow 170ms ease, border-color 170ms ease;
   }
-  button.secondary { background: #2a2e3d; color: var(--text); }
+  button:hover:not(:disabled), button:focus-visible {
+    background: var(--accent-bright);
+    border-color: #d13a3a;
+    box-shadow: 0 0 18px rgba(176, 18, 18, .42);
+    outline: none;
+  }
+  button:active:not(:disabled) { transform: scale(.96); }
+  button:disabled { opacity: .48; cursor: not-allowed; }
+  button.secondary { background: #211717; color: var(--text); border-color: #482424; }
+  button.small { flex: 0 0 auto; min-height: 44px; padding: 7px 11px; font-size: 13px; }
+  button::after {
+    content: ""; position: absolute; z-index: -1; left: var(--ripple-x, 50%); top: var(--ripple-y, 50%);
+    width: 12px; height: 12px; border-radius: 50%; background: rgba(255, 225, 225, .45);
+    transform: translate(-50%, -50%) scale(0); opacity: 0; pointer-events: none;
+  }
+  button.is-rippling::after { animation: ripple 250ms ease-out; }
+  button.is-glowing { animation: glow-pulse 240ms ease-out; }
+  @keyframes ripple { to { transform: translate(-50%, -50%) scale(24); opacity: 0; } }
+  @keyframes glow-pulse {
+    0% { box-shadow: 0 0 0 rgba(176, 18, 18, 0); }
+    50% { box-shadow: 0 0 20px rgba(176, 18, 18, .55); }
+    100% { box-shadow: 0 0 0 rgba(176, 18, 18, 0); }
+  }
   input[type=text] {
     width: 100%;
-    padding: 12px;
+    min-height: 46px;
+    padding: 12px 13px;
     border-radius: 10px;
-    border: 1px solid #2a2e3d;
-    background: #10121a;
+    border: 1px solid var(--border);
+    background: #0b0b0b;
     color: var(--text);
     font-size: 14px;
     margin-bottom: 10px;
@@ -61,64 +106,141 @@
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 10px 0;
-    border-bottom: 1px solid #22263;
-    font-size: 14px;
+    gap: 12px;
+    padding: 12px 0;
+    border-bottom: 1px solid #302020;
   }
   .queue-item:last-child { border-bottom: none; }
-  .queue-item button {
-    flex: none;
-    background: #2a2e3d;
-    padding: 6px 10px;
-    font-size: 12px;
-  }
-  .empty { color: var(--muted); font-size: 13px; padding: 10px 0; }
-  .error { color: #ff9b9b; font-size: 13px; margin-top: 8px; }
+  .queue-title { min-width: 0; overflow-wrap: anywhere; font-size: 14px; }
+  .empty { color: var(--muted); font-size: 14px; padding: 16px 0 4px; }
+  .error { color: #ff9b9b; font-size: 14px; margin-top: 9px; }
   .error:empty { display: none; }
+  .maintenance-banner {
+    border: 1px solid #8c2525; border-radius: var(--radius);
+    background: #350d0d; padding: 16px; margin: 0 0 14px;
+    color: #ffe8e8; box-shadow: 0 0 22px rgba(176, 18, 18, .18);
+  }
+  .maintenance-banner strong { display: block; margin-bottom: 4px; font-size: 18px; }
+  .maintenance-banner p { margin: 0; color: #e5caca; white-space: pre-wrap; }
+  .admin-overlay {
+    position: fixed; inset: 0; z-index: 20; display: grid; place-items: center;
+    padding: 16px; background: rgba(0, 0, 0, .82); backdrop-filter: blur(6px);
+  }
+  .admin-overlay[hidden], [hidden] { display: none !important; }
+  .admin-modal {
+    width: min(100%, 460px); padding: 22px; border-radius: 18px;
+    border: 1px solid var(--accent-bright); background: #121010;
+    box-shadow: 0 0 40px rgba(139, 0, 0, .28);
+  }
+  .admin-status { display: flex; align-items: center; gap: 9px; margin: 8px 0 18px; font-size: 14px; font-weight: 700; }
+  .status-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--live); box-shadow: 0 0 12px currentColor; }
+  .admin-status.is-maintenance .status-dot { background: var(--maintenance); }
+  .toggle-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 48px; }
+  .toggle-row input { width: 22px; height: 22px; accent-color: var(--accent-bright); }
+  textarea {
+    width: 100%; min-height: 88px; resize: vertical; margin: 10px 0 4px;
+    padding: 12px; border-radius: 10px; border: 1px solid var(--border);
+    background: #0b0b0b; color: var(--text); font: inherit;
+  }
+  input:focus-visible, textarea:focus-visible { outline: 2px solid #b83a3a; outline-offset: 2px; }
+  @media (max-width: 480px) {
+    .controls > button { min-width: calc(50% - 5px); }
+    .join-form { align-items: stretch; }
+    .join-form button { min-width: 82px; }
+    .volume-row { grid-template-columns: auto 1fr; }
+    .volume-row output { grid-column: 2; text-align: right; }
+    .admin-modal { padding: 18px; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; }
+  }
 </style>
 </head>
 <body>
 
-<h1>🎵 Control Panel</h1>
-<div class="sub" id="connectionStatus">Checking Discord voice connection…</div>
+<main class="shell">
+  <header>
+    <h1>Music Control</h1>
+    <div class="sub" id="connectionStatus">Checking Discord voice connection…</div>
+  </header>
 
-<div class="card">
-  <strong>Voice channel</strong>
-  <div class="status" id="voiceChannelStatus" style="margin-top:6px">Not connected to a voice channel</div>
-  <div class="join-form">
-    <input type="text" id="voiceChannelInput" aria-label="Discord voice channel ID" placeholder="Paste a Discord voice channel ID" />
-    <button id="joinChannelBtn">Join</button>
+  <div class="maintenance-banner" id="maintenanceBanner" hidden role="status" aria-live="polite">
+    <strong>Under Maintenance</strong>
+    <p id="maintenanceBannerMessage"></p>
   </div>
-  <div class="error" id="joinChannelError" role="alert" aria-live="polite"></div>
-</div>
 
-<div class="card">
-  <div class="now-playing-title" id="nowPlaying">Nothing playing</div>
-  <div class="status" id="status">Idle</div>
-  <div class="error" id="playerError" role="status" aria-live="polite"></div>
-  <div class="controls">
-    <button id="pauseBtn">Pause</button>
-    <button id="resumeBtn" class="secondary">Resume</button>
-    <button id="skipBtn" class="secondary">Skip</button>
-  </div>
-</div>
+  <section class="card" aria-label="Voice channel">
+    <strong>Voice channel</strong>
+    <div class="status" id="voiceChannelStatus" style="margin-top:6px">Not connected to a voice channel</div>
+    <div class="join-form">
+      <input type="text" id="voiceChannelInput" aria-label="Discord voice channel ID" placeholder="Paste a Discord voice channel ID" autocomplete="off" />
+      <button id="joinChannelBtn">Join</button>
+    </div>
+    <div class="error" id="joinChannelError" role="alert" aria-live="polite"></div>
+  </section>
 
-<div class="card">
-  <input type="text" id="songInput" placeholder="Paste a YouTube link or type a song name" />
-  <button id="addBtn" style="width:100%">Add to queue</button>
-</div>
+  <section class="card" aria-label="Now playing">
+    <div class="now-playing-title" id="nowPlaying">Nothing playing</div>
+    <div class="status" id="status">Idle</div>
+    <div class="error" id="playerError" role="status" aria-live="polite"></div>
+    <div class="controls">
+      <button id="playPauseBtn">Play / Pause</button>
+      <button id="skipBtn" class="secondary">Skip</button>
+      <button id="stopBtn" class="secondary">Stop</button>
+    </div>
+    <div class="volume-row">
+      <label for="volumeInput">Volume</label>
+      <input type="range" id="volumeInput" min="0" max="100" step="1" value="100" aria-label="Playback volume" />
+      <output id="volumeLabel" for="volumeInput">100%</output>
+    </div>
+    <div class="button-row">
+      <button id="loopBtn" class="secondary">Loop: off</button>
+      <button id="shuffleBtn" class="secondary">Shuffle</button>
+    </div>
+  </section>
 
-<div class="card">
-  <div style="display:flex; justify-content:space-between; align-items:center;">
-    <strong>Queue</strong>
-    <button id="clearBtn" class="secondary" style="flex:none; padding:6px 10px; font-size:12px;">Clear</button>
-  </div>
-  <div id="queueList"></div>
+  <section class="card" aria-label="Add a song">
+    <input type="text" id="songInput" placeholder="Search a song or paste a YouTube link" aria-label="Song search or YouTube link" />
+    <button id="addBtn" style="width:100%">Add to queue</button>
+  </section>
+
+  <section class="card" aria-label="Upcoming queue">
+    <div class="queue-heading">
+      <strong>Upcoming queue</strong>
+      <button id="clearBtn" class="secondary small">Clear</button>
+    </div>
+    <div id="queueList"></div>
+  </section>
+</main>
+
+<div class="admin-overlay" id="adminOverlay" hidden>
+  <section class="admin-modal" role="dialog" aria-modal="true" aria-labelledby="adminTitle">
+    <h2 id="adminTitle">Admin</h2>
+    <div class="admin-status" id="adminStatusIndicator">
+      <span class="status-dot" aria-hidden="true"></span>
+      <span id="adminStatusText">Live</span>
+    </div>
+    <label class="toggle-row" for="maintenanceToggle">
+      <span>Maintenance mode</span>
+      <input type="checkbox" id="maintenanceToggle" />
+    </label>
+    <label for="maintenanceMessage">Custom maintenance message (optional)</label>
+    <textarea id="maintenanceMessage" maxlength="500" placeholder="Add a short message for visitors"></textarea>
+    <div class="button-row">
+      <button id="saveMaintenanceBtn">Save settings</button>
+      <button id="adminLogoutBtn" class="secondary">Logout</button>
+    </div>
+    <div class="error" id="adminError" role="alert" aria-live="polite"></div>
+  </section>
 </div>
 
 <script src="/socket.io/socket.io.js"></script>
 <script>
   const socket = io();
+
+  let isAdmin = false;
+  let currentState = null;
+  let maintenanceSavePending = false;
 
   const nowPlayingEl = document.getElementById('nowPlaying');
   const statusEl = document.getElementById('status');
@@ -128,8 +250,51 @@
   const voiceChannelInput = document.getElementById('voiceChannelInput');
   const joinChannelBtn = document.getElementById('joinChannelBtn');
   const joinChannelErrorEl = document.getElementById('joinChannelError');
+  const maintenanceBanner = document.getElementById('maintenanceBanner');
+  const maintenanceBannerMessage = document.getElementById('maintenanceBannerMessage');
   const queueListEl = document.getElementById('queueList');
   const songInput = document.getElementById('songInput');
+  const playPauseBtn = document.getElementById('playPauseBtn');
+  const volumeInput = document.getElementById('volumeInput');
+  const volumeLabel = document.getElementById('volumeLabel');
+  const loopBtn = document.getElementById('loopBtn');
+  const adminOverlay = document.getElementById('adminOverlay');
+  const maintenanceToggle = document.getElementById('maintenanceToggle');
+  const maintenanceMessageInput = document.getElementById('maintenanceMessage');
+  const adminStatusIndicator = document.getElementById('adminStatusIndicator');
+  const adminStatusText = document.getElementById('adminStatusText');
+  const adminError = document.getElementById('adminError');
+
+  const normalControlIds = [
+    'playPauseBtn', 'skipBtn', 'stopBtn', 'volumeInput', 'loopBtn',
+    'shuffleBtn', 'songInput', 'addBtn', 'clearBtn',
+  ];
+
+  function updateControlAccess() {
+    const locked = Boolean(currentState?.maintenance?.enabled && !isAdmin);
+    const queueLength = currentState?.queue?.length || 0;
+    const stateDisabled = {
+      playPauseBtn: !currentState?.current,
+      skipBtn: !currentState?.current,
+      stopBtn: !currentState?.current && queueLength === 0 && currentState?.voiceStatus === 'disconnected',
+      shuffleBtn: queueLength < 2,
+      clearBtn: queueLength === 0,
+    };
+    for (const id of normalControlIds) {
+      const element = document.getElementById(id);
+      if (element) element.disabled = locked || Boolean(stateDisabled[id]);
+    }
+    queueListEl.querySelectorAll('button[data-normal-control]').forEach((button) => {
+      button.disabled = locked;
+    });
+  }
+
+  function updateMaintenanceBanner(state) {
+    const maintenance = state?.maintenance || { enabled: false, message: '' };
+    maintenanceBanner.hidden = !maintenance.enabled;
+    maintenanceBannerMessage.textContent = maintenance.message || 'Music controls are temporarily unavailable.';
+    updateControlAccess();
+  }
 
   socket.on('connect', () => {
     connectionStatusEl.textContent = 'Control panel connected · checking Discord voice…';
@@ -139,7 +304,14 @@
     connectionStatusEl.textContent = 'Control panel disconnected';
   });
 
+  socket.on('session', ({ isAdmin: authenticated } = {}) => {
+    isAdmin = Boolean(authenticated);
+    updateControlAccess();
+    if (isAdmin) loadAdminStatus(true);
+  });
+
   socket.on('state', (state) => {
+    currentState = state;
     nowPlayingEl.textContent = state.current ? state.current.title : 'Nothing playing';
     statusEl.textContent = `Status: ${state.status} · ${state.queue.length} in queue`;
     connectionStatusEl.textContent = `Control panel connected · Discord voice: ${state.voiceStatus || 'unknown'}`;
@@ -147,30 +319,53 @@
       ? `Connected to ${state.voiceChannel.name}`
       : 'Not connected to a voice channel';
     playerErrorEl.textContent = state.error || '';
+    const paused = state.status === 'paused' || state.status === 'autopaused';
+    playPauseBtn.textContent = state.current ? (paused ? 'Play' : 'Pause') : 'Play / Pause';
+    volumeInput.value = String(state.volume ?? 100);
+    volumeLabel.textContent = `${state.volume ?? 100}%`;
+    loopBtn.textContent = `Loop: ${state.loopMode || 'off'}`;
+    updateMaintenanceBanner(state);
 
     queueListEl.innerHTML = '';
     if (state.queue.length === 0) {
-      queueListEl.innerHTML = '<div class="empty">Queue is empty — add a song above.</div>';
+      const empty = document.createElement('div');
+      empty.className = 'empty';
+      empty.textContent = 'Queue is empty — add a song above.';
+      queueListEl.appendChild(empty);
     } else {
       state.queue.forEach((track, i) => {
         const row = document.createElement('div');
         row.className = 'queue-item';
-        row.innerHTML = `<span>${i + 1}. ${track.title}</span>`;
+        const title = document.createElement('span');
+        title.className = 'queue-title';
+        title.textContent = `${i + 1}. ${track.title}`;
+        row.appendChild(title);
         const removeBtn = document.createElement('button');
+        removeBtn.className = 'secondary small';
+        removeBtn.dataset.normalControl = 'true';
         removeBtn.textContent = 'Remove';
         removeBtn.onclick = () => socket.emit('removeAt', i);
         row.appendChild(removeBtn);
         queueListEl.appendChild(row);
       });
     }
+    updateControlAccess();
   });
 
   document.getElementById('addBtn').onclick = () => {
     const value = songInput.value.trim();
-    if (!value) return;
-    socket.emit('addSong', value, (res) => {
+    if (!value) {
+      playerErrorEl.textContent = 'Enter a song name or YouTube URL.';
+      return;
+    }
+    playerErrorEl.textContent = '';
+    socket.timeout(60000).emit('addSong', value, (timeoutError, res) => {
+      if (timeoutError) {
+        playerErrorEl.textContent = 'Adding the song timed out. Try again.';
+        return;
+      }
       if (!res?.ok) {
-        alert('Error: ' + (res?.error || 'The song could not be added.'));
+        playerErrorEl.textContent = res?.error || 'The song could not be added.';
         return;
       }
       songInput.value = '';
@@ -181,7 +376,7 @@
     if (e.key === 'Enter') document.getElementById('addBtn').click();
   });
 
-  function joinVoiceChannel() {
+  async function submitChannelEntry() {
     const channelId = voiceChannelInput.value.trim();
     if (!channelId) {
       joinChannelErrorEl.textContent = 'Enter a Discord voice channel ID.';
@@ -191,6 +386,26 @@
     joinChannelBtn.disabled = true;
     joinChannelBtn.textContent = 'Joining…';
     joinChannelErrorEl.textContent = '';
+    try {
+      const response = await fetch('/api/channel-entry', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ value: channelId }),
+      });
+      const entry = await response.json();
+      if (entry.result === 'admin') {
+        voiceChannelInput.value = '';
+        window.location.reload();
+        return;
+      }
+    } catch {
+      joinChannelBtn.disabled = false;
+      joinChannelBtn.textContent = 'Join';
+      joinChannelErrorEl.textContent = 'Could not process that entry. Try again.';
+      return;
+    }
+
     socket.timeout(25000).emit('joinChannel', channelId, (timeoutError, res) => {
       joinChannelBtn.disabled = false;
       joinChannelBtn.textContent = 'Join';
@@ -209,15 +424,112 @@
     });
   }
 
-  joinChannelBtn.onclick = joinVoiceChannel;
+  joinChannelBtn.onclick = submitChannelEntry;
   voiceChannelInput.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') joinVoiceChannel();
+    if (e.key === 'Enter') submitChannelEntry();
   });
 
-  document.getElementById('pauseBtn').onclick = () => socket.emit('pause');
-  document.getElementById('resumeBtn').onclick = () => socket.emit('resume');
+  playPauseBtn.onclick = () => socket.emit('togglePause');
   document.getElementById('skipBtn').onclick = () => socket.emit('skip');
+  document.getElementById('stopBtn').onclick = () => socket.emit('stop');
   document.getElementById('clearBtn').onclick = () => socket.emit('clearQueue');
+  document.getElementById('shuffleBtn').onclick = () => socket.emit('shuffle');
+
+  volumeInput.addEventListener('input', () => {
+    volumeLabel.textContent = `${volumeInput.value}%`;
+    socket.emit('setVolume', Number(volumeInput.value));
+  });
+
+  loopBtn.onclick = () => {
+    const modes = ['off', 'song', 'queue'];
+    const current = currentState?.loopMode || 'off';
+    const next = modes[(modes.indexOf(current) + 1) % modes.length];
+    socket.emit('setLoopMode', next);
+  };
+
+  socket.on('controlError', (message) => {
+    playerErrorEl.textContent = message;
+  });
+
+  function updateAdminIndicator(enabled) {
+    adminStatusIndicator.classList.toggle('is-maintenance', enabled);
+    adminStatusText.textContent = enabled ? 'Maintenance mode' : 'Live';
+  }
+
+  async function loadAdminStatus(openPopup) {
+    try {
+      const response = await fetch('/api/admin/status', { credentials: 'same-origin' });
+      if (!response.ok) {
+        isAdmin = false;
+        updateControlAccess();
+        return false;
+      }
+      const data = await response.json();
+      isAdmin = true;
+      maintenanceToggle.checked = Boolean(data.maintenance.enabled);
+      maintenanceMessageInput.value = data.maintenance.message || '';
+      updateAdminIndicator(maintenanceToggle.checked);
+      updateControlAccess();
+      if (openPopup) adminOverlay.hidden = false;
+      return true;
+    } catch {
+      isAdmin = false;
+      updateControlAccess();
+      return false;
+    }
+  }
+
+  async function saveMaintenanceSettings() {
+    if (maintenanceSavePending) return;
+    maintenanceSavePending = true;
+    adminError.textContent = '';
+    updateAdminIndicator(maintenanceToggle.checked);
+    try {
+      const response = await fetch('/api/admin/maintenance', {
+        method: 'PUT',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          enabled: maintenanceToggle.checked,
+          message: maintenanceMessageInput.value,
+        }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Could not save maintenance settings.');
+      maintenanceToggle.checked = Boolean(data.maintenance.enabled);
+      maintenanceMessageInput.value = data.maintenance.message || '';
+      updateAdminIndicator(maintenanceToggle.checked);
+    } catch (error) {
+      adminError.textContent = error.message;
+      await loadAdminStatus(false);
+    } finally {
+      maintenanceSavePending = false;
+    }
+  }
+
+  document.getElementById('saveMaintenanceBtn').onclick = saveMaintenanceSettings;
+  maintenanceToggle.addEventListener('change', saveMaintenanceSettings);
+  document.getElementById('adminLogoutBtn').onclick = async () => {
+    try {
+      await fetch('/api/admin/logout', { method: 'POST', credentials: 'same-origin' });
+    } finally {
+      window.location.reload();
+    }
+  };
+
+  document.addEventListener('pointerdown', (event) => {
+    const button = event.target.closest('button');
+    if (!button || button.disabled) return;
+    const bounds = button.getBoundingClientRect();
+    button.style.setProperty('--ripple-x', `${event.clientX - bounds.left}px`);
+    button.style.setProperty('--ripple-y', `${event.clientY - bounds.top}px`);
+    button.classList.remove('is-rippling', 'is-glowing');
+    void button.offsetWidth;
+    button.classList.add('is-rippling', 'is-glowing');
+    window.setTimeout(() => button.classList.remove('is-rippling', 'is-glowing'), 300);
+  });
+
+  loadAdminStatus(true);
 </script>
 
 </body>

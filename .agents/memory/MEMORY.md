@@ -1,1 +1,2 @@
 - [Discord bot streaming setup](discord-bot-node24.md) — keep native audio, voice encryption, YouTube streaming, and transitive packages compatible with Replit's current Node runtime.
+- [Preserve the bot project structure](preserve-project-structure.md) — extend the existing music bot instead of rebuilding it.

@@ -25,16 +25,33 @@ class MusicPlayer {
     this.connectionStatus = VoiceConnectionStatus.Disconnected;
     this.isVoiceReady = false;
     this.current = null; // currently playing track
-    this.volume = 1; // 0.0 - 2.0
+    this.volume = 100;
+    this.loopMode = 'off';
     this.resource = null;
     this.isLoading = false;
+    this.playbackGeneration = 0;
+    this.skipRequested = false;
+    this.suppressAutoAdvance = false;
+    this.maintenanceState = { enabled: false, message: '' };
     this.lastError = null;
     this.youtube = new Ytdl({ timeoutMs: 45_000 });
 
     this.player.on(AudioPlayerStatus.Idle, () => {
-      // Finished a track (or nothing was playing) -> play the next one
+      const finishedTrack = this.current;
       this.current = null;
-      this._playNext();
+      const shouldAdvance = !this.suppressAutoAdvance;
+      this.suppressAutoAdvance = false;
+
+      if (this.skipRequested) {
+        this.skipRequested = false;
+      } else if (finishedTrack && this.loopMode === 'song') {
+        this.queue.unshift(finishedTrack);
+      } else if (finishedTrack && this.loopMode === 'queue') {
+        this.queue.push(finishedTrack);
+      }
+
+      this._broadcastState();
+      if (shouldAdvance) void this._playNext();
     });
 
     this.player.on('error', (err) => {
@@ -146,31 +163,125 @@ class MusicPlayer {
   }
 
   skip() {
-    // Stopping the player triggers the "Idle" event above, which plays the next track
-    this.player.stop();
+    if (!this.current && !this.isLoading) return false;
+
+    this.playbackGeneration += 1;
+    this.isLoading = false;
+    this.skipRequested = true;
+    const stopped = this.player.stop(true);
+    if (!stopped) {
+      this.skipRequested = false;
+      if (this.queue.length) void this._playNext();
+    }
+    return true;
   }
 
   pause() {
-    this.player.pause();
+    const paused = this.player.pause();
     this._broadcastState();
+    return paused;
   }
 
   resume() {
-    this.player.unpause();
+    const resumed = this.player.unpause();
+    this._broadcastState();
+    return resumed;
+  }
+
+  togglePause() {
+    if (
+      this.player.state.status === AudioPlayerStatus.Paused
+      || this.player.state.status === AudioPlayerStatus.AutoPaused
+    ) {
+      return this.resume();
+    }
+    return this.pause();
+  }
+
+  setVolume(value) {
+    const volume = Number(value);
+    if (!Number.isInteger(volume) || volume < 0 || volume > 100) {
+      throw new Error('Volume must be a whole number from 0 to 100.');
+    }
+    this.volume = volume;
+    if (this.resource?.volume) this.resource.volume.setVolume(volume / 100);
+    this._broadcastState();
+    return this.volume;
+  }
+
+  setLoopMode(mode) {
+    if (!['off', 'song', 'queue'].includes(mode)) {
+      throw new Error('Loop mode must be off, song, or queue.');
+    }
+    this.loopMode = mode;
+    this._broadcastState();
+    return this.loopMode;
+  }
+
+  shuffle() {
+    if (this.queue.length < 2) return false;
+    for (let index = this.queue.length - 1; index > 0; index -= 1) {
+      const swapIndex = Math.floor(Math.random() * (index + 1));
+      [this.queue[index], this.queue[swapIndex]] = [this.queue[swapIndex], this.queue[index]];
+    }
+    this._broadcastState();
+    return true;
+  }
+
+  stopPlayback({ clearQueue = false } = {}) {
+    this.playbackGeneration += 1;
+    this.isLoading = false;
+    this.current = null;
+    this.resource = null;
+    this.lastError = null;
+    if (clearQueue) this.queue = [];
+
+    this.suppressAutoAdvance = true;
+    const stopped = this.player.stop(true);
+    if (!stopped) this.suppressAutoAdvance = false;
+    this._broadcastState();
+  }
+
+  leaveChannel({ clearQueue = false } = {}) {
+    const wasConnected = Boolean(this.connection || this.connectedChannel);
+    this.isVoiceReady = false;
+    this.stopPlayback({ clearQueue });
+
+    if (this.connection) this.connection.destroy();
+    this.connection = null;
+    this.subscription = null;
+    this.connectedChannel = null;
+    this.connectionStatus = VoiceConnectionStatus.Disconnected;
+    this._broadcastState();
+    return wasConnected;
+  }
+
+  stopAndLeave() {
+    this.leaveChannel({ clearQueue: true });
+  }
+
+  setMaintenanceState(state) {
+    this.maintenanceState = {
+      enabled: Boolean(state?.enabled),
+      message: typeof state?.message === 'string' ? state.message : '',
+    };
     this._broadcastState();
   }
 
   clearQueue() {
+    const count = this.queue.length;
     this.queue = [];
-    this.lastError = null;
     this._broadcastState();
+    return count;
   }
 
   removeAt(index) {
     if (index >= 0 && index < this.queue.length) {
-      this.queue.splice(index, 1);
+      const [removed] = this.queue.splice(index, 1);
       this._broadcastState();
+      return removed;
     }
+    return null;
   }
 
   getState() {
@@ -178,8 +289,11 @@ class MusicPlayer {
       current: this.current,
       queue: this.queue,
       status: this.player.state.status,
+      volume: this.volume,
+      loopMode: this.loopMode,
       voiceStatus: this.connectionStatus,
       voiceChannel: this.connectedChannel,
+      maintenance: this.maintenanceState,
       error: this.lastError,
     };
   }
@@ -199,11 +313,13 @@ class MusicPlayer {
       return;
     }
 
+    const generation = this.playbackGeneration;
     this.isLoading = true;
     this._broadcastState();
 
     try {
       const info = await this.youtube.getInfo(next.url);
+      if (generation !== this.playbackGeneration) return;
       const stream = this.youtube.download(info, {
         quality: Quality.HighestAudio,
         filter: { hasAudio: true, hasVideo: false },
@@ -212,20 +328,24 @@ class MusicPlayer {
         inputType: StreamType.Arbitrary,
         inlineVolume: true,
       });
-      this.resource.volume.setVolume(this.volume);
+      this.resource.volume.setVolume(this.volume / 100);
       this.player.play(this.resource);
       this.current = next;
       this.lastError = null;
     } catch (err) {
-      console.error('Failed to play track:', next.title, err.message);
-      this.current = null;
-      this.lastError = `Failed to play "${next.title}": ${err.message}`;
+      if (generation === this.playbackGeneration) {
+        console.error('Failed to play track:', next.title, err.message);
+        this.current = null;
+        this.lastError = `Failed to play "${next.title}": ${err.message}`;
+      }
     } finally {
-      this.isLoading = false;
-      this._broadcastState();
+      if (generation === this.playbackGeneration) {
+        this.isLoading = false;
+        this._broadcastState();
+      }
     }
 
-    if (!this.current && this.queue.length) {
+    if (generation === this.playbackGeneration && !this.current && this.queue.length) {
       void this._playNext();
     }
   }
