@@ -21,6 +21,7 @@ class MusicPlayer {
     this.player = createAudioPlayer();
     this.connection = null;
     this.subscription = null;
+    this.connectedChannel = null;
     this.connectionStatus = VoiceConnectionStatus.Disconnected;
     this.isVoiceReady = false;
     this.current = null; // currently playing track
@@ -44,12 +45,14 @@ class MusicPlayer {
     });
   }
 
-  // Connect the bot to a voice channel. Call this once at startup.
+  // Connect or switch the bot to a voice channel.
   async connect(channel) {
     if (!channel?.isVoiceBased?.()) {
-      throw new Error('The configured channel is not a voice channel.');
+      throw new Error('The selected channel is not a voice channel.');
     }
 
+    this.connectedChannel = null;
+    this.lastError = null;
     if (this.connection) {
       this.connection.destroy();
     }
@@ -102,6 +105,7 @@ class MusicPlayer {
     this.subscription = connection.subscribe(this.player);
     this.isVoiceReady = true;
     this.connectionStatus = connection.state.status;
+    this.connectedChannel = { id: channel.id, name: channel.name };
     this.lastError = null;
     console.log(`Joined voice channel: ${channel.name}`);
     this._broadcastState();
@@ -175,6 +179,7 @@ class MusicPlayer {
       queue: this.queue,
       status: this.player.state.status,
       voiceStatus: this.connectionStatus,
+      voiceChannel: this.connectedChannel,
       error: this.lastError,
     };
   }

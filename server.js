@@ -24,10 +24,62 @@ const io = new Server(server);
 
 const musicPlayer = new MusicPlayer(io);
 
+function assertVoiceChannelPermissions(channel, botUser) {
+  const permissions = channel.permissionsFor(botUser);
+  const requiredPermissions = [
+    [PermissionFlagsBits.ViewChannel, 'View Channel'],
+    [PermissionFlagsBits.Connect, 'Connect'],
+    [PermissionFlagsBits.Speak, 'Speak'],
+  ];
+  const missingPermissions = requiredPermissions
+    .filter(([permission]) => !permissions?.has(permission))
+    .map(([, label]) => label);
+
+  if (missingPermissions.length) {
+    throw new Error(`The bot is missing channel permissions: ${missingPermissions.join(', ')}.`);
+  }
+}
+
 io.on('connection', (socket) => {
   console.log('Website client connected');
   // Send current state immediately so the page isn't blank on load
   socket.emit('state', musicPlayer.getState());
+
+  socket.on('joinChannel', async (channelId, ack) => {
+    try {
+      if (!client.isReady()) {
+        throw new Error('The Discord bot is not connected yet. Try again shortly.');
+      }
+
+      const id = String(channelId || '').trim();
+      if (!id) throw new Error('Enter a Discord voice channel ID.');
+      if (!/^\d{17,20}$/.test(id)) {
+        throw new Error('Enter a valid Discord channel ID.');
+      }
+
+      let channel;
+      try {
+        channel = await client.channels.fetch(id);
+      } catch (err) {
+        if (err.code === 10003 || err.code === 50001) {
+          throw new Error('Channel not found or the bot cannot access it.');
+        }
+        throw err;
+      }
+
+      if (!channel?.isVoiceBased?.()) {
+        throw new Error('That ID does not identify a voice channel.');
+      }
+
+      assertVoiceChannelPermissions(channel, client.user);
+      await musicPlayer.connect(channel);
+      if (typeof ack === 'function') {
+        ack({ ok: true, channel: { id: channel.id, name: channel.name } });
+      }
+    } catch (err) {
+      if (typeof ack === 'function') ack({ ok: false, error: err.message });
+    }
+  });
 
   socket.on('addSong', async (query, ack) => {
     try {
@@ -69,19 +121,7 @@ client.once(Events.ClientReady, async (c) => {
         throw new Error('VOICE_CHANNEL_ID does not point to a voice channel.');
       }
 
-      const permissions = channel.permissionsFor(c.user);
-      const requiredPermissions = [
-        [PermissionFlagsBits.ViewChannel, 'View Channel'],
-        [PermissionFlagsBits.Connect, 'Connect'],
-        [PermissionFlagsBits.Speak, 'Speak'],
-      ];
-      const missingPermissions = requiredPermissions
-        .filter(([permission]) => !permissions?.has(permission))
-        .map(([, label]) => label);
-      if (missingPermissions.length) {
-        throw new Error(`The bot is missing channel permissions: ${missingPermissions.join(', ')}.`);
-      }
-
+      assertVoiceChannelPermissions(channel, c.user);
       await musicPlayer.connect(channel);
     } catch (err) {
       console.error('Could not join the configured voice channel:', err.message);

@@ -33,6 +33,9 @@
   .now-playing-title { font-size: 18px; font-weight: 600; margin-bottom: 4px; }
   .status { color: var(--muted); font-size: 13px; }
   .controls { display: flex; gap: 10px; margin-top: 14px; }
+  .join-form { display: flex; gap: 10px; margin-top: 12px; }
+  .join-form input[type=text] { flex: 1; min-width: 0; margin: 0; }
+  .join-form button { flex: none; min-width: 82px; }
   button {
     flex: 1;
     padding: 12px;
@@ -80,6 +83,16 @@
 <div class="sub" id="connectionStatus">Checking Discord voice connection…</div>
 
 <div class="card">
+  <strong>Voice channel</strong>
+  <div class="status" id="voiceChannelStatus" style="margin-top:6px">Not connected to a voice channel</div>
+  <div class="join-form">
+    <input type="text" id="voiceChannelInput" aria-label="Discord voice channel ID" placeholder="Paste a Discord voice channel ID" />
+    <button id="joinChannelBtn">Join</button>
+  </div>
+  <div class="error" id="joinChannelError" role="alert" aria-live="polite"></div>
+</div>
+
+<div class="card">
   <div class="now-playing-title" id="nowPlaying">Nothing playing</div>
   <div class="status" id="status">Idle</div>
   <div class="error" id="playerError" role="status" aria-live="polite"></div>
@@ -111,6 +124,10 @@
   const statusEl = document.getElementById('status');
   const connectionStatusEl = document.getElementById('connectionStatus');
   const playerErrorEl = document.getElementById('playerError');
+  const voiceChannelStatusEl = document.getElementById('voiceChannelStatus');
+  const voiceChannelInput = document.getElementById('voiceChannelInput');
+  const joinChannelBtn = document.getElementById('joinChannelBtn');
+  const joinChannelErrorEl = document.getElementById('joinChannelError');
   const queueListEl = document.getElementById('queueList');
   const songInput = document.getElementById('songInput');
 
@@ -126,6 +143,9 @@
     nowPlayingEl.textContent = state.current ? state.current.title : 'Nothing playing';
     statusEl.textContent = `Status: ${state.status} · ${state.queue.length} in queue`;
     connectionStatusEl.textContent = `Control panel connected · Discord voice: ${state.voiceStatus || 'unknown'}`;
+    voiceChannelStatusEl.textContent = state.voiceStatus === 'ready' && state.voiceChannel?.name
+      ? `Connected to ${state.voiceChannel.name}`
+      : 'Not connected to a voice channel';
     playerErrorEl.textContent = state.error || '';
 
     queueListEl.innerHTML = '';
@@ -159,6 +179,39 @@
 
   songInput.addEventListener('keydown', (e) => {
     if (e.key === 'Enter') document.getElementById('addBtn').click();
+  });
+
+  function joinVoiceChannel() {
+    const channelId = voiceChannelInput.value.trim();
+    if (!channelId) {
+      joinChannelErrorEl.textContent = 'Enter a Discord voice channel ID.';
+      return;
+    }
+
+    joinChannelBtn.disabled = true;
+    joinChannelBtn.textContent = 'Joining…';
+    joinChannelErrorEl.textContent = '';
+    socket.timeout(25000).emit('joinChannel', channelId, (timeoutError, res) => {
+      joinChannelBtn.disabled = false;
+      joinChannelBtn.textContent = 'Join';
+      if (timeoutError) {
+        joinChannelErrorEl.textContent = 'Joining timed out. Check the bot permissions and try again.';
+        return;
+      }
+      if (!res?.ok) {
+        joinChannelErrorEl.textContent = res?.error || 'Could not join that voice channel.';
+        return;
+      }
+
+      voiceChannelInput.value = '';
+      joinChannelErrorEl.textContent = '';
+      voiceChannelStatusEl.textContent = `Connected to ${res.channel.name}`;
+    });
+  }
+
+  joinChannelBtn.onclick = joinVoiceChannel;
+  voiceChannelInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') joinVoiceChannel();
   });
 
   document.getElementById('pauseBtn').onclick = () => socket.emit('pause');
